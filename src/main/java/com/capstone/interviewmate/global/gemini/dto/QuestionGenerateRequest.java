@@ -1,0 +1,19 @@
+package com.capstone.interviewmate.global.gemini.dto;
+
+import lombok.Getter;
+
+@Getter
+public class QuestionGenerateRequest {
+
+    private Long sessionId;
+
+    private String mode;
+
+    private String stage;
+
+    private String previousAnswer;
+
+    private String userInput;
+
+    private Integer questionOrder;
+}

@@ -6,8 +6,10 @@ import com.capstone.interviewmate.session.entity.Session;
 import com.capstone.interviewmate.session.entity.SessionStatus;
 import com.capstone.interviewmate.session.repository.SessionRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -19,6 +21,9 @@ public class SessionService {
     private final SessionRepository sessionRepository;
 
     public SessionResponse createSession(SessionCreateRequest request) {
+        if (request == null || request.getMode() == null || request.getTotalQuestionCount() == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "mode와 totalQuestionCount는 필수입니다.");
+        }
 
         Session session = Session.builder()
                 .sessionUuid(UUID.randomUUID().toString())
@@ -45,7 +50,7 @@ public class SessionService {
     public void endSession(Long sessionId) {
 
         Session session = sessionRepository.findById(sessionId)
-                .orElseThrow(() -> new RuntimeException("세션을 찾을 수 없습니다."));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "세션을 찾을 수 없습니다."));
 
         session.setStatus(SessionStatus.COMPLETED);
         session.setEndedAt(LocalDateTime.now());

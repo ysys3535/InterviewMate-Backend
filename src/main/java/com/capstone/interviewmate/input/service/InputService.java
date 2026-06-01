@@ -7,7 +7,9 @@ import com.capstone.interviewmate.input.repository.InputRepository;
 import com.capstone.interviewmate.session.entity.Session;
 import com.capstone.interviewmate.session.repository.SessionRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
 
 @Service
 @RequiredArgsConstructor
@@ -17,9 +19,12 @@ public class InputService {
     private final SessionRepository sessionRepository;
 
     public InputResponse createInput(InputCreateRequest request) {
+        if (request == null || request.getSessionId() == null || request.getUserPrompt() == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "sessionId와 userPrompt는 필수입니다.");
+        }
 
         Session session = sessionRepository.findById(request.getSessionId())
-                .orElseThrow(() -> new RuntimeException("Session not found"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Session not found"));
 
         Input input = Input.builder()
                 .userPrompt(request.getUserPrompt())

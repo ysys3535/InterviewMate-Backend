@@ -18,5 +18,5 @@ spring:
 gemini:
   api-key: ${GEMINI_API_KEY}
 
-openai:
-  api-key: ${OPENAI_API_KEY}
+elevenlabs:
+  api-key: ${ELEVENLABS_API_KEY}

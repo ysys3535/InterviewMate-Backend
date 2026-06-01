@@ -1,84 +1,80 @@
 package com.capstone.interviewmate.stt.service;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import lombok.extern.slf4j.Slf4j;
-import okhttp3.*;
-import org.json.JSONObject;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
+import org.springframework.web.reactive.function.BodyInserters;
+import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.multipart.MultipartFile;
-
-import java.io.IOException;
 
 @Service
 @Slf4j
 public class SttService {
 
-    @Value("${openai.api-key}")
-    private String apiKey;
+    @Value("${elevenlabs.api-key}")
+    private String elevenLabsApiKey;
 
-    private final OkHttpClient client = new OkHttpClient();
+    private final WebClient webClient = WebClient.builder().build();
 
-    public String convertSpeechToText(MultipartFile audio) {
+    public String transcribe(MultipartFile audio) {
         if (audio == null || audio.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "음성 파일이 비어 있습니다.");
         }
 
-        String contentType = audio.getContentType() != null ? audio.getContentType() : "application/octet-stream";
-        String fileName = audio.getOriginalFilename() != null ? audio.getOriginalFilename() : "audio.webm";
-        MediaType mediaType = MediaType.parse(contentType);
-
         try {
-            RequestBody fileBody =
-                    RequestBody.create(
-                            audio.getBytes(),
-                            mediaType
-                    );
-
-            MultipartBody requestBody = new MultipartBody.Builder()
-                    .setType(MultipartBody.FORM)
-                    .addFormDataPart(
-                            "file",
-                            fileName,
-                            fileBody
-                    )
-                    .addFormDataPart("model", "whisper-1")
-                    .build();
-
-            Request request = new Request.Builder()
-                    .url("https://api.openai.com/v1/audio/transcriptions")
-                    .addHeader("Authorization", "Bearer " + apiKey)
-                    .post(requestBody)
-                    .build();
-
             log.info(
                     "STT request received. filename={}, contentType={}, size={} bytes",
-                    fileName,
-                    contentType,
+                    audio.getOriginalFilename(),
+                    audio.getContentType(),
                     audio.getSize()
             );
 
-            try (Response response = client.newCall(request).execute()) {
-                String responseBody = response.body() != null ? response.body().string() : "";
+            return webClient.post()
+                    .uri("https://api.elevenlabs.io/v1/speech-to-text")
+                    .header("xi-api-key", elevenLabsApiKey)
+                    .contentType(MediaType.MULTIPART_FORM_DATA)
+                    .body(BodyInserters.fromMultipartData("model_id", "scribe_v2")
+                            .with("file", audio.getResource()))
+                    .retrieve()
+                    .onStatus(
+                            status -> status.isError(),
+                            response -> response.bodyToMono(String.class)
+                                    .defaultIfEmpty("")
+                                    .map(body -> {
+                                        log.error(
+                                                "ElevenLabs STT request failed. status={}, body={}",
+                                                response.statusCode(),
+                                                body
+                                        );
+                                        return new ResponseStatusException(
+                                                HttpStatus.BAD_GATEWAY,
+                                                "ElevenLabs STT 요청 실패"
+                                        );
+                                    })
+                    )
+                    .bodyToMono(JsonNode.class)
+                    .map(json -> {
+                        JsonNode text = json.get("text");
+                        if (text == null || text.asText().isBlank()) {
+                            log.error("ElevenLabs STT response missing text. response={}", json);
+                            throw new ResponseStatusException(
+                                    HttpStatus.BAD_GATEWAY,
+                                    "ElevenLabs STT 응답에 text가 없습니다."
+                            );
+                        }
 
-                if (!response.isSuccessful()) {
-                    log.error("OpenAI STT request failed. status={}, body={}", response.code(), responseBody);
-                    throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "OpenAI STT 요청 실패");
-                }
-
-                JSONObject json = new JSONObject(responseBody);
-
-                return json.getString("text");
-            }
-        } catch (IOException e) {
-            log.error("OpenAI STT request error", e);
-            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "STT 변환 요청 실패");
+                        return text.asText();
+                    })
+                    .block();
         } catch (ResponseStatusException e) {
             throw e;
         } catch (Exception e) {
-            log.error("STT response parsing failed", e);
-            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "STT 응답 처리 실패");
+            log.error("ElevenLabs STT request failed", e);
+            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "ElevenLabs STT 요청 실패");
         }
     }
 }

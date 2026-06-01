@@ -1,5 +1,6 @@
 package com.capstone.interviewmate.global.gemini.service;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.capstone.interviewmate.feedback.entity.Feedback;
 import com.capstone.interviewmate.feedback.repository.FeedbackRepository;
 import com.capstone.interviewmate.global.gemini.dto.GeminiRequest;
@@ -8,17 +9,20 @@ import com.capstone.interviewmate.global.gemini.dto.QuestionGenerateResponse;
 import com.capstone.interviewmate.session.entity.Session;
 import com.capstone.interviewmate.session.repository.SessionRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
-import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class GeminiService {
 
     @Value("${gemini.api-key}")
@@ -28,9 +32,12 @@ public class GeminiService {
     private final SessionRepository sessionRepository;
 
     public String analyzeAnswer(Long sessionId, String answerText) {
+        if (sessionId == null || answerText == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "sessionId와 answerText는 필수입니다.");
+        }
 
         Session session = sessionRepository.findById(sessionId)
-                .orElseThrow(() -> new RuntimeException("Session not found"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Session not found"));
 
         String prompt = """
                 너는 면접 답변을 평가하는 AI 면접관이야.
@@ -94,9 +101,12 @@ public class GeminiService {
     }
 
     public QuestionGenerateResponse generateQuestion(QuestionGenerateRequest request) {
+        if (request == null || request.getSessionId() == null || request.getQuestionOrder() == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "sessionId와 questionOrder는 필수입니다.");
+        }
 
         Session session = sessionRepository.findById(request.getSessionId())
-                .orElseThrow(() -> new RuntimeException("Session not found"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Session not found"));
 
         String prompt = """
                 너는 실제 면접관처럼 질문을 생성하는 AI 면접관이야.
@@ -167,19 +177,48 @@ public class GeminiService {
                 )
         );
 
-        Map response = webClient.post()
-                .uri("/models/gemini-2.5-flash:generateContent")
-                .bodyValue(request)
-                .retrieve()
-                .bodyToMono(Map.class)
-                .block();
+        try {
+            JsonNode response = webClient.post()
+                    .uri("/models/gemini-2.5-flash:generateContent")
+                    .bodyValue(request)
+                    .retrieve()
+                    .onStatus(
+                            status -> status.isError(),
+                            clientResponse -> clientResponse.bodyToMono(String.class)
+                                    .defaultIfEmpty("")
+                                    .map(body -> {
+                                        log.error(
+                                                "Gemini request failed. status={}, body={}",
+                                                clientResponse.statusCode(),
+                                                body
+                                        );
+                                        return new ResponseStatusException(
+                                                HttpStatus.BAD_GATEWAY,
+                                                "Gemini 요청 실패"
+                                        );
+                                    })
+                    )
+                    .bodyToMono(JsonNode.class)
+                    .block();
 
-        List candidates = (List) response.get("candidates");
-        Map candidate = (Map) candidates.get(0);
-        Map content = (Map) candidate.get("content");
-        List parts = (List) content.get("parts");
-        Map part = (Map) parts.get(0);
+            JsonNode text = response == null
+                    ? null
+                    : response.path("candidates").path(0).path("content").path("parts").path(0).get("text");
 
-        return part.get("text").toString();
+            if (text == null || text.asText().isBlank()) {
+                log.error("Gemini response missing text. response={}", response);
+                throw new ResponseStatusException(
+                        HttpStatus.BAD_GATEWAY,
+                        "Gemini 응답에 text가 없습니다."
+                );
+            }
+
+            return text.asText();
+        } catch (ResponseStatusException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("Gemini response processing failed", e);
+            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Gemini 응답 처리 실패");
+        }
     }
 }

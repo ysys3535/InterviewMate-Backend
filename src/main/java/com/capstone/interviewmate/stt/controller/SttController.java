@@ -17,7 +17,7 @@ public class SttController {
     public SttResponse speechToText(
             @RequestParam("audio") MultipartFile audio
     ) {
-        String text = sttService.convertSpeechToText(audio);
+        String text = sttService.transcribe(audio);
 
         return new SttResponse(text);
     }

@@ -31,6 +31,9 @@ public class GeminiService {
     @Value("${gemini.api-key}")
     private String apiKey;
 
+    @Value("${gemini.model}")
+    private String geminiModel;
+
     private final FeedbackRepository feedbackRepository;
     private final SessionRepository sessionRepository;
     private final ObjectMapper objectMapper = new ObjectMapper();
@@ -183,7 +186,7 @@ public class GeminiService {
 
         try {
             String responseBody = webClient.post()
-                    .uri("/models/gemini-2.0-flash-lite-001:generateContent")
+                    .uri("/models/{model}:generateContent", geminiModel)
                     .bodyValue(request)
                     .retrieve()
                     .onStatus(
@@ -192,7 +195,8 @@ public class GeminiService {
                                     .defaultIfEmpty("")
                                     .map(body -> {
                                         log.error(
-                                                "Gemini request failed. status={}, body={}",
+                                                "Gemini request failed. model={}, status={}, body={}",
+                                                geminiModel,
                                                 clientResponse.statusCode(),
                                                 body
                                         );

@@ -183,7 +183,7 @@ public class GeminiService {
 
         try {
             String responseBody = webClient.post()
-                    .uri("/models/gemini-2.5-flash:generateContent")
+                    .uri("/models/gemini-2.0-flash-lite:generateContent")
                     .bodyValue(request)
                     .retrieve()
                     .onStatus(

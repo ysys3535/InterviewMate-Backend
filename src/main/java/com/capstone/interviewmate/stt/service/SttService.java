@@ -1,6 +1,7 @@
 package com.capstone.interviewmate.stt.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
@@ -19,6 +20,7 @@ public class SttService {
     private String elevenLabsApiKey;
 
     private final WebClient webClient = WebClient.builder().build();
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     public String transcribe(MultipartFile audio) {
         if (audio == null || audio.isEmpty()) {
@@ -33,7 +35,7 @@ public class SttService {
                     audio.getSize()
             );
 
-            return webClient.post()
+            String responseBody = webClient.post()
                     .uri("https://api.elevenlabs.io/v1/speech-to-text")
                     .header("xi-api-key", elevenLabsApiKey)
                     .contentType(MediaType.MULTIPART_FORM_DATA)
@@ -56,20 +58,22 @@ public class SttService {
                                         );
                                     })
                     )
-                    .bodyToMono(JsonNode.class)
-                    .map(json -> {
-                        JsonNode text = json.get("text");
-                        if (text == null || text.asText().isBlank()) {
-                            log.error("ElevenLabs STT response missing text. response={}", json);
-                            throw new ResponseStatusException(
-                                    HttpStatus.BAD_GATEWAY,
-                                    "ElevenLabs STT 응답에 text가 없습니다."
-                            );
-                        }
-
-                        return text.asText();
-                    })
+                    .bodyToMono(String.class)
                     .block();
+
+            log.info("ElevenLabs STT raw response={}", responseBody);
+
+            JsonNode json = objectMapper.readTree(responseBody);
+            JsonNode text = json.get("text");
+            if (text == null || text.asText().isBlank()) {
+                log.error("ElevenLabs STT response missing text. response={}", json);
+                throw new ResponseStatusException(
+                        HttpStatus.BAD_GATEWAY,
+                        "ElevenLabs STT 응답에 text가 없습니다."
+                );
+            }
+
+            return text.asText();
         } catch (ResponseStatusException e) {
             throw e;
         } catch (Exception e) {

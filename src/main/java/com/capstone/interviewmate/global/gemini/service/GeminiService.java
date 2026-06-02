@@ -1,6 +1,7 @@
 package com.capstone.interviewmate.global.gemini.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.capstone.interviewmate.feedback.entity.Feedback;
 import com.capstone.interviewmate.feedback.repository.FeedbackRepository;
 import com.capstone.interviewmate.global.gemini.dto.GeminiRequest;
@@ -30,6 +31,7 @@ public class GeminiService {
 
     private final FeedbackRepository feedbackRepository;
     private final SessionRepository sessionRepository;
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     public String analyzeAnswer(Long sessionId, String answerText) {
         if (sessionId == null || answerText == null) {
@@ -178,7 +180,7 @@ public class GeminiService {
         );
 
         try {
-            JsonNode response = webClient.post()
+            String responseBody = webClient.post()
                     .uri("/models/gemini-2.5-flash:generateContent")
                     .bodyValue(request)
                     .retrieve()
@@ -198,9 +200,12 @@ public class GeminiService {
                                         );
                                     })
                     )
-                    .bodyToMono(JsonNode.class)
+                    .bodyToMono(String.class)
                     .block();
 
+            log.info("Gemini raw response={}", responseBody);
+
+            JsonNode response = objectMapper.readTree(responseBody);
             JsonNode text = response == null
                     ? null
                     : response.path("candidates").path(0).path("content").path("parts").path(0).get("text");

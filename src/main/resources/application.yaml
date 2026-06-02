@@ -17,7 +17,7 @@ spring:
 
 gemini:
   api-key: ${GEMINI_API_KEY}
-  model: ${GEMINI_MODEL:gemini-2.0-flash-lite}
+  model: ${GEMINI_MODEL:gemini-2.5-flash-lite}
 
 elevenlabs:
   api-key: ${ELEVENLABS_API_KEY}

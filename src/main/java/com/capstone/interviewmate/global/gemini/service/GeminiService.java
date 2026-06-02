@@ -201,7 +201,7 @@ public class GeminiService {
                                                 body
                                         );
                                         return new ResponseStatusException(
-                                                clientResponse.statusCode(),
+                                                HttpStatus.BAD_GATEWAY,
                                                 "Gemini 요청 실패"
                                         );
                                     })

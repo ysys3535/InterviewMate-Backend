@@ -18,7 +18,9 @@ import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.server.ResponseStatusException;
+import reactor.util.retry.Retry;
 
+import java.time.Duration;
 import java.util.List;
 
 @Service
@@ -195,12 +197,15 @@ public class GeminiService {
                                                 body
                                         );
                                         return new ResponseStatusException(
-                                                HttpStatus.BAD_GATEWAY,
+                                                clientResponse.statusCode(),
                                                 "Gemini 요청 실패"
                                         );
                                     })
                     )
                     .bodyToMono(String.class)
+                    .retryWhen(Retry.backoff(2, Duration.ofSeconds(1))
+                            .filter(this::isRetryableGeminiError)
+                            .onRetryExhaustedThrow((retryBackoffSpec, retrySignal) -> retrySignal.failure()))
                     .block();
 
             log.info("Gemini raw response={}", responseBody);
@@ -225,5 +230,13 @@ public class GeminiService {
             log.error("Gemini response processing failed", e);
             throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Gemini 응답 처리 실패");
         }
+    }
+
+    private boolean isRetryableGeminiError(Throwable throwable) {
+        if (!(throwable instanceof ResponseStatusException exception)) {
+            return false;
+        }
+
+        return exception.getStatusCode().is5xxServerError();
     }
 }

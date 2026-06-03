@@ -25,7 +25,7 @@ public class SessionService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "mode는 필수입니다.");
         }
 
-        String mode = request.getMode().trim().toUpperCase();
+        String mode = normalizeMode(request.getMode(), request.getTotalQuestionCount());
         int totalQuestionCount = getTotalQuestionCount(mode);
 
         Session session = Session.builder()
@@ -55,6 +55,18 @@ public class SessionService {
             case "COMMON" -> 5;
             case "ADVANCED" -> 7;
             default -> throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "지원하지 않는 면접 모드입니다.");
+        };
+    }
+
+    private String normalizeMode(String mode, Integer requestedQuestionCount) {
+        String normalizedMode = mode.trim().toUpperCase();
+
+        return switch (normalizedMode) {
+            case "BASIC", "COMMON", "ADVANCED" -> normalizedMode;
+            case "MOCK" -> requestedQuestionCount != null && requestedQuestionCount == 1 ? "BASIC" : "COMMON";
+            case "DEEP" -> "ADVANCED";
+            case "ONEMINUTEINTRO", "ONE_MINUTE_INTRO" -> "BASIC";
+            default -> normalizedMode;
         };
     }
 

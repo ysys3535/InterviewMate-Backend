@@ -117,7 +117,17 @@ public class GeminiService {
 
         String mode = session.getMode() == null ? "" : session.getMode().trim().toUpperCase();
         if ("BASIC".equals(mode)) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "BASIC 모드는 질문 생성 없이 자기소개 답변 피드백만 진행합니다.");
+            if (request.getQuestionOrder() != 1) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "BASIC 모드는 자기소개 질문만 진행합니다.");
+            }
+
+            return QuestionGenerateResponse.builder()
+                    .sessionId(session.getSessionId())
+                    .mode(mode)
+                    .stage(request.getStage())
+                    .questionOrder(request.getQuestionOrder())
+                    .question("1분 자기소개를 해주세요.")
+                    .build();
         }
         if (!"COMMON".equals(mode) && !"ADVANCED".equals(mode)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "지원하지 않는 면접 모드입니다.");

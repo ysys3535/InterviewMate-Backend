@@ -115,6 +115,17 @@ public class GeminiService {
         Session session = sessionRepository.findById(request.getSessionId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Session not found"));
 
+        String mode = session.getMode() == null ? "" : session.getMode().trim().toUpperCase();
+        if ("BASIC".equals(mode)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "BASIC 모드는 질문 생성 없이 자기소개 답변 피드백만 진행합니다.");
+        }
+        if (!"COMMON".equals(mode) && !"ADVANCED".equals(mode)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "지원하지 않는 면접 모드입니다.");
+        }
+        if (request.getQuestionOrder() < 1 || request.getQuestionOrder() > session.getTotalQuestionCount()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "질문 순서가 세션의 질문 수 범위를 벗어났습니다.");
+        }
+
         String prompt = """
                 너는 실제 면접관처럼 질문을 생성하는 AI 면접관이야.
 
@@ -130,6 +141,9 @@ public class GeminiService {
                 [질문 순서]
                 %d
 
+                [전체 질문 수]
+                %d
+
                 [이전 답변]
                 %s
 
@@ -140,19 +154,21 @@ public class GeminiService {
                 1. 질문은 반드시 하나만 작성해.
                 2. 설명, 번호, 따옴표 없이 질문 문장만 작성해.
                 3. 질문은 한국어로 작성해.
-                4. 모든 모드의 첫 번째 질문은 반드시 자기소개 질문으로 시작해.
-                5. 질문 순서가 1이면 자기소개 질문을 생성해.
-                6. 질문 순서가 2이면 이전 자기소개 답변을 바탕으로 후속 질문을 생성해.
-                7. 질문 순서가 3 이상이면 지원 직무, 경험, 강점, 이전 답변을 바탕으로 면접 질문을 생성해.
+                4. 첫 번째 질문은 반드시 자기소개 질문으로 시작해.
+                5. 질문 순서가 1이면 자기소개 질문만 생성해.
+                6. 질문 순서가 2 이상이면 이전 답변을 바탕으로 자연스럽게 이어지는 후속 질문을 생성해.
+                7. 사용자 추가 입력 정보가 있으면 지원 직무, 경험, 강점, 기술 스택을 질문에 반영해.
 
-                모드별 난이도:
-                - BASIC: 쉬운 표현으로 부담 없는 질문을 생성해.
-                - COMMON: 일반적인 실제 면접 수준의 질문을 생성해.
-                - ADVANCED: 이전 답변을 깊게 파고드는 꼬리질문, 구체적 검증 질문을 생성해.
+                모드별 질문 구성:
+                - COMMON: 총 5개 질문으로 진행하며, 일반적인 실제 면접 수준의 질문을 생성해.
+                  자기소개 이후에는 경험, 직무 적합성, 협업, 문제 해결 역량을 균형 있게 확인해.
+                - ADVANCED: 총 7개 질문으로 진행하며, COMMON보다 더 심화된 질문을 생성해.
+                  자기소개 이후에는 이전 답변의 근거, 의사결정 과정, 실패 경험, 기술적 깊이, 구체적 성과를 파고드는 꼬리질문을 생성해.
                 """.formatted(
-                request.getMode(),
+                mode,
                 request.getStage(),
                 request.getQuestionOrder(),
+                session.getTotalQuestionCount(),
                 request.getPreviousAnswer() == null ? "없음" : request.getPreviousAnswer(),
                 request.getUserInput() == null ? "없음" : request.getUserInput()
         );
@@ -161,7 +177,7 @@ public class GeminiService {
 
         return QuestionGenerateResponse.builder()
                 .sessionId(session.getSessionId())
-                .mode(request.getMode())
+                .mode(mode)
                 .stage(request.getStage())
                 .questionOrder(request.getQuestionOrder())
                 .question(question)

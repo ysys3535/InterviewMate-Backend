@@ -21,16 +21,19 @@ public class SessionService {
     private final SessionRepository sessionRepository;
 
     public SessionResponse createSession(SessionCreateRequest request) {
-        if (request == null || request.getMode() == null || request.getTotalQuestionCount() == null) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "mode와 totalQuestionCount는 필수입니다.");
+        if (request == null || request.getMode() == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "mode는 필수입니다.");
         }
+
+        String mode = request.getMode().trim().toUpperCase();
+        int totalQuestionCount = getTotalQuestionCount(mode);
 
         Session session = Session.builder()
                 .sessionUuid(UUID.randomUUID().toString())
-                .mode(request.getMode())
+                .mode(mode)
                 .status(SessionStatus.IN_PROGRESS)
                 .currentStage("QUESTION")
-                .totalQuestionCount(request.getTotalQuestionCount())
+                .totalQuestionCount(totalQuestionCount)
                 .currentQuestionOrder(1)
                 .startedAt(LocalDateTime.now())
                 .build();
@@ -44,6 +47,15 @@ public class SessionService {
                 .status(savedSession.getStatus())
                 .totalQuestionCount(savedSession.getTotalQuestionCount())
                 .build();
+    }
+
+    private int getTotalQuestionCount(String mode) {
+        return switch (mode) {
+            case "BASIC" -> 1;
+            case "COMMON" -> 5;
+            case "ADVANCED" -> 7;
+            default -> throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "지원하지 않는 면접 모드입니다.");
+        };
     }
 
     @Transactional

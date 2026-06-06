@@ -15,5 +15,11 @@ public class QuestionGenerateRequest {
 
     private String userInput;
 
+    private String companyName;
+
+    private String jobRole;
+
+    private String questionStyle;
+
     private Integer questionOrder;
 }

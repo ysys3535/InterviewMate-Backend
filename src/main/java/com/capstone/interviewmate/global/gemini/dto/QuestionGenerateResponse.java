@@ -16,4 +16,8 @@ public class QuestionGenerateResponse {
     private Integer questionOrder;
 
     private String question;
+
+    private String questionAudioBase64;
+
+    private String questionAudioContentType;
 }

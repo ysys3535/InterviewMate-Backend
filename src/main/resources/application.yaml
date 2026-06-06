@@ -21,3 +21,7 @@ gemini:
 
 elevenlabs:
   api-key: ${ELEVENLABS_API_KEY}
+  voice-id: ${ELEVENLABS_VOICE_ID:JBFqnCBsd6RMkjVDRZzb}
+  tts-model: ${ELEVENLABS_TTS_MODEL:eleven_multilingual_v2}
+  tts-output-format: ${ELEVENLABS_TTS_OUTPUT_FORMAT:mp3_44100_128}
+  tts-language-code: ${ELEVENLABS_TTS_LANGUAGE_CODE:ko}

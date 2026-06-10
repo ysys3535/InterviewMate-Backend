@@ -52,7 +52,7 @@ public class SessionService {
     private int getTotalQuestionCount(String mode) {
         return switch (mode) {
             case "BASIC" -> 1;
-            case "COMMON" -> 7;
+            case "COMMON" -> 4;
             case "ADVANCED" -> 7;
             default -> throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "지원하지 않는 면접 모드입니다.");
         };
